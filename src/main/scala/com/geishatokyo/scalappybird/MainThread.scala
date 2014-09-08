@@ -5,6 +5,13 @@ import android.content.res.Resources
 import android.view.SurfaceHolder
 import android.graphics.{Canvas, Paint, Rect, Path, Bitmap, BitmapFactory}
 
+object Util {
+  val deviceWidth = 800
+  val startTime = System.currentTimeMillis()
+  def getTime() = {
+    (System.currentTimeMillis() - startTime)/1000.0
+  }
+}
 
 case class Point(var x: Int, var y: Int)
 
@@ -25,6 +32,7 @@ class Bird(p: Point) extends GameObject {
   var img : Bitmap = null;
   var point: Point = p
   var speed: Int = 10
+  var startTime: Double = 0
   val upOffset: Int = -200
   var enable: Boolean = true
 
@@ -37,7 +45,9 @@ class Bird(p: Point) extends GameObject {
     
     // falling
     if (enable){
-      point.y = point.y + speed
+      // point.y = point.y + speed
+      if(startTime != 0)
+      point.y = point.y - (25 * (1 - (System.currentTimeMillis() - startTime)/1000)).toInt
     }
 
     // dead or alive
@@ -51,16 +61,17 @@ class Bird(p: Point) extends GameObject {
     if (enable){
      g drawBitmap(img, point.x, point.y, p)
     } else {
-       val gamePaint = new Paint
+      val gamePaint = new Paint
       gamePaint.setARGB(255, 255, 0, 0)
       gamePaint.setTextSize(64)
-      g drawText ("Game End", 250, GameObject.canvasHeight/2-32, gamePaint)     
+      g drawText ("game over", 250, GameObject.canvasHeight/2-32, gamePaint)     
     }
   }
 
   override def touchEvent(x: Int, y: Int) = {
     if (enable){
-      point.y = point.y + upOffset
+      startTime = System.currentTimeMillis()
+      // point.y = point.y + upOffset
     }    
   }
 }
@@ -78,23 +89,47 @@ trait StaticGameObject extends GameObject {
     img = BitmapFactory.decodeResource(res, resourceId)
   }
   def update() {}
+
   def draw(g: Canvas) {
     val p = new Paint
     g drawBitmap(img, point.x, point.y, p)
   }
 }
 
+class ScoreCount(p: Point) extends StaticGameObject {
+  val point: Point = p
+  val resourceId: Int = R.drawable.pipeup
+  val startTime = System.currentTimeMillis
+  override def draw(g: Canvas) {
+    val t = new Paint
+    t.setARGB(255, 0, 0, 0)
+    t.setTextSize(64)
+    g drawText (Util.getTime.toInt.toString, p.x, p.y, t)         
+  }
+  
+}
+
 class PipeUp(p: Point) extends StaticGameObject {
+  val startTime = System.currentTimeMillis
+  val startPointx = p.x
   val point: Point = p
   val resourceId: Int = R.drawable.pipeup
   override def update() {
     point.y = GameObject.canvasHeight - height
+    point.x = point.x -  10
+    if((startPointx - point.x).abs > GameObject.canvasWidth) point.x += GameObject.canvasWidth 
   }
 }
 
 class PipeDown(p: Point) extends StaticGameObject {
+  val startTime = System.currentTimeMillis
+  val startPointx = p.x
   val point: Point = p
   val resourceId: Int = R.drawable.pipedown  
+  override def update() {
+    point.x = point.x - 10
+    if((startPointx - point.x).abs > GameObject.canvasWidth) point.x += GameObject.canvasWidth 
+  }
 }
 
 trait PaddingWidthStaticGameObject extends StaticGameObject {
@@ -107,29 +142,42 @@ trait PaddingWidthStaticGameObject extends StaticGameObject {
 }
 
 class Land(p: Point) extends PaddingWidthStaticGameObject {
+  val startTime = System.currentTimeMillis
   val point: Point = p
+  val startPointx = p.x
   val resourceId: Int = R.drawable.land
   override def update() {
     point.y = GameObject.canvasHeight - height
+    point.x = point.x - 10
+    if((startPointx - point.x).abs > GameObject.canvasWidth) point.x += GameObject.canvasWidth 
   }
 }
 
 class Sky(p: Point) extends PaddingWidthStaticGameObject {
+  val startTime = System.currentTimeMillis
+  val startPointx = p.x
   val point: Point = p
   val resourceId: Int = R.drawable.sky
   override def update() {
     point.y = GameObject.canvasHeight - height - 112 /* Land height */
+    point.x = point.x - 10
+    if((startPointx - point.x).abs > GameObject.canvasWidth) point.x += GameObject.canvasWidth 
   }  
 }
 
 class MainThread(holder: SurfaceHolder, context: Context) extends Thread {
-
+  val deviceWidth = Util.deviceWidth
   // initialize
   var gameObjects : List[GameObject] = {
     List(new Sky(Point(0,900-109)),
          new Land(Point(0,900)),
          new PipeUp(Point(500,760)),
          new PipeDown(Point(300,0)),
+         new Sky(Point(deviceWidth,900-109)),
+         new Land(Point(deviceWidth,900)),
+         new PipeUp(Point(500+deviceWidth,760)),
+         new PipeDown(Point(300+deviceWidth,0)),
+         new ScoreCount(Point(600,80)),
          new Bird(Point(100,0)))
   }
   gameObjects.foreach(_.initialize(context))
